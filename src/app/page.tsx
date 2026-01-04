@@ -17,7 +17,12 @@ import {
   Eye,
   Plus,
   Search,
-  Layout
+  Layout,
+  Smartphone,
+  FileText,
+  Video,
+  Globe,
+  Instagram
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +52,18 @@ type GeneratedResult = {
   metaAdPrimaryText: string;
   metaAdHeadline: string;
   metaAdDescription: string;
+  // New fields
+  landingPageHeadline: string;
+  landingPageSubheadline: string;
+  instagramCaption: string;
+  pushNotificationTitle: string;
+  pushNotificationBody: string;
+  smsMessage: string;
+  blogPostTitle: string;
+  blogPostOutline: string;
+  youtubeVideoTitle: string;
+  youtubeVideoDescription: string;
+  productHuntTagline: string;
 };
 
 // --- Mock AI Generation ---
@@ -63,7 +80,19 @@ const generateCampaign = async (data: CampaignData): Promise<GeneratedResult> =>
         googleAdDescription: `Discover ${data.productName}. ${data.productDescription.slice(0, 60)}... Shop now for exclusive deals.`,
         metaAdPrimaryText: `Stop scrolling and start experiencing ${data.productName}. 🛑✨ \n\n${data.productDescription}`,
         metaAdHeadline: `The Future of ${data.productName} is Here`,
-        metaAdDescription: "Shop Now"
+        metaAdDescription: "Shop Now",
+        // New fields
+        landingPageHeadline: `Master Your Workflow with ${data.productName}`,
+        landingPageSubheadline: `The all-in-one solution designed to help you ${data.productDescription.slice(0, 30).toLowerCase()}... and achieve more.`,
+        instagramCaption: `✨ Ready to level up? Meet ${data.productName}. \n\n${data.productDescription.slice(0, 40)}... \n\nLink in bio! 🔗 #NewLaunch #Productivity #${data.productName.replace(/\s/g, '')}`,
+        pushNotificationTitle: `It's finally here! 🎉`,
+        pushNotificationBody: `See what's new in ${data.productName}. Tap to explore.`,
+        smsMessage: `Hey! ${data.productName} is live. Get early access now: bit.ly/launch - Text STOP to opt out.`,
+        blogPostTitle: `Why We Built ${data.productName} (And Why You Need It)`,
+        blogPostOutline: `1. The Problem: Why current solutions fail.\n2. The Solution: How ${data.productName} changes the game.\n3. Getting Started: Your first steps to success.`,
+        youtubeVideoTitle: `${data.productName} Official Launch Trailer | The Future of Work`,
+        youtubeVideoDescription: `Welcome to ${data.productName}. In this video, we show you how to ${data.productDescription.slice(0, 50)}... \n\nLearn more at our website.`,
+        productHuntTagline: `The best way to ${data.productDescription.slice(0, 20)}...`
       });
     }, 3000); // Simulate 3s generation time
   });
@@ -774,30 +803,70 @@ export default function OnboardingPage() {
             {/* Right Column: Content Assets */}
             <div className="md:col-span-2">
               <Tabs defaultValue="social" className="w-full">
-                <TabsList className="grid w-full grid-cols-4">
+                <TabsList className="grid w-full grid-cols-4 h-auto flex-wrap">
                   <TabsTrigger value="social">Social</TabsTrigger>
                   <TabsTrigger value="email">Email</TabsTrigger>
                   <TabsTrigger value="google">Google Ads</TabsTrigger>
                   <TabsTrigger value="meta">Meta Ads</TabsTrigger>
+                  <TabsTrigger value="landing">Landing Page</TabsTrigger>
+                  <TabsTrigger value="mobile">Mobile/SMS</TabsTrigger>
+                  <TabsTrigger value="content">Content</TabsTrigger>
+                  <TabsTrigger value="video">Video</TabsTrigger>
                 </TabsList>
                 
                 <TabsContent value="social" className="mt-4">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <MessageSquare className="w-5 h-5 text-blue-500" /> LinkedIn / Twitter Post
-                      </CardTitle>
-                      <CardDescription>Optimized for engagement and clicks.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="bg-slate-50 p-6 rounded-md mx-6 mb-6 border">
-                      <pre className="whitespace-pre-wrap font-sans text-slate-700">{result.socialPost}</pre>
-                    </CardContent>
-                    <CardFooter className="justify-end">
-                      <Button variant="ghost" size="sm">
-                        <Copy className="w-4 h-4 mr-2" /> Copy Text
-                      </Button>
-                    </CardFooter>
-                  </Card>
+                  <div className="space-y-4">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <MessageSquare className="w-5 h-5 text-blue-500" /> LinkedIn / Twitter Post
+                        </CardTitle>
+                        <CardDescription>Optimized for engagement and clicks.</CardDescription>
+                      </CardHeader>
+                      <CardContent className="bg-slate-50 p-6 rounded-md mx-6 mb-6 border">
+                        <pre className="whitespace-pre-wrap font-sans text-slate-700">{result.socialPost}</pre>
+                      </CardContent>
+                      <CardFooter className="justify-end">
+                        <Button variant="ghost" size="sm">
+                          <Copy className="w-4 h-4 mr-2" /> Copy Text
+                        </Button>
+                      </CardFooter>
+                    </Card>
+
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Instagram className="w-5 h-5 text-pink-500" /> Instagram Caption
+                        </CardTitle>
+                        <CardDescription>Visual-first copy with hashtags.</CardDescription>
+                      </CardHeader>
+                      <CardContent className="bg-slate-50 p-6 rounded-md mx-6 mb-6 border">
+                        <pre className="whitespace-pre-wrap font-sans text-slate-700">{result.instagramCaption}</pre>
+                      </CardContent>
+                      <CardFooter className="justify-end">
+                        <Button variant="ghost" size="sm">
+                          <Copy className="w-4 h-4 mr-2" /> Copy Text
+                        </Button>
+                      </CardFooter>
+                    </Card>
+
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Rocket className="w-5 h-5 text-orange-500" /> Product Hunt Tagline
+                        </CardTitle>
+                        <CardDescription>Punchy one-liner for your launch.</CardDescription>
+                      </CardHeader>
+                      <CardContent className="bg-slate-50 p-6 rounded-md mx-6 mb-6 border">
+                        <p className="font-medium text-slate-900">{result.productHuntTagline}</p>
+                      </CardContent>
+                      <CardFooter className="justify-end">
+                        <Button variant="ghost" size="sm">
+                          <Copy className="w-4 h-4 mr-2" /> Copy Text
+                        </Button>
+                      </CardFooter>
+                    </Card>
+                  </div>
                 </TabsContent>
 
                 <TabsContent value="email" className="mt-4">
@@ -879,32 +948,29 @@ export default function OnboardingPage() {
                         <div className="p-3 flex items-center gap-2">
                           <div className="w-10 h-10 bg-slate-200 rounded-full flex-shrink-0"></div>
                           <div className="flex-1">
-                            <div className="font-semibold text-sm text-slate-900">Your Brand Name</div>
-                            <div className="text-xs text-slate-500">Sponsored · <span className="globe-icon">🌍</span></div>
+                            <div className="font-semibold text-sm">{formData.productName}</div>
+                            <div className="text-xs text-slate-500">Sponsored · 🌍</div>
                           </div>
                         </div>
                         
                         {/* Primary Text */}
-                        <div className="px-3 pb-3 text-sm text-slate-800 whitespace-pre-wrap bg-white">
+                        <div className="px-3 pb-3 text-sm text-slate-900 whitespace-pre-wrap">
                           {result.metaAdPrimaryText}
                         </div>
 
                         {/* Image Placeholder */}
-                        <div className="w-full aspect-square bg-slate-100 flex items-center justify-center text-slate-400">
-                          <div className="text-center">
-                            <div className="mb-2">[Ad Creative Image]</div>
-                            <div className="text-xs">1080 x 1080</div>
-                          </div>
+                        <div className="aspect-square bg-slate-100 flex items-center justify-center text-slate-400">
+                          [Ad Creative Image]
                         </div>
 
                         {/* CTA Section */}
-                        <div className="p-3 bg-slate-50 flex justify-between items-center border-t">
+                        <div className="p-3 bg-slate-50 border-t flex justify-between items-center">
                           <div>
                             <div className="text-xs text-slate-500 uppercase">example.com</div>
                             <div className="font-bold text-sm text-slate-900">{result.metaAdHeadline}</div>
                             <div className="text-xs text-slate-600">{result.metaAdDescription}</div>
                           </div>
-                          <Button size="sm" variant="outline" className="h-8">Shop Now</Button>
+                          <Button size="sm" variant="outline" className="h-8">Learn More</Button>
                         </div>
                       </div>
                     </CardContent>
@@ -913,6 +979,130 @@ export default function OnboardingPage() {
                         <Copy className="w-4 h-4 mr-2" /> Copy Ad Copy
                       </Button>
                     </CardFooter>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="landing" className="mt-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Globe className="w-5 h-5 text-green-600" /> Landing Page Hero
+                      </CardTitle>
+                      <CardDescription>High-converting headline and subheadline.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6 p-8 bg-slate-50 border rounded-md mx-6 mb-6 text-center">
+                      <div className="space-y-2">
+                        <Label className="text-xs text-slate-500 uppercase">H1 Headline</Label>
+                        <h1 className="text-3xl md:text-4xl font-bold text-slate-900">{result.landingPageHeadline}</h1>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs text-slate-500 uppercase">H2 Subheadline</Label>
+                        <p className="text-xl text-slate-600">{result.landingPageSubheadline}</p>
+                      </div>
+                      <div className="pt-4">
+                        <Button size="lg">Get Started Free</Button>
+                      </div>
+                    </CardContent>
+                    <CardFooter className="justify-end">
+                      <Button variant="ghost" size="sm">
+                        <Copy className="w-4 h-4 mr-2" /> Copy Copy
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="mobile" className="mt-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Smartphone className="w-5 h-5 text-indigo-500" /> Push Notification
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-6 flex justify-center bg-slate-100 rounded-md mx-6 mb-6">
+                        <div className="bg-white w-64 rounded-2xl shadow-lg overflow-hidden border">
+                          <div className="bg-slate-100 p-3 border-b flex items-center gap-2">
+                            <div className="w-4 h-4 bg-primary rounded-sm"></div>
+                            <span className="text-xs font-semibold text-slate-700">{formData.productName}</span>
+                            <span className="text-xs text-slate-400 ml-auto">now</span>
+                          </div>
+                          <div className="p-4">
+                            <div className="font-semibold text-sm mb-1">{result.pushNotificationTitle}</div>
+                            <div className="text-sm text-slate-600">{result.pushNotificationBody}</div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <MessageSquare className="w-5 h-5 text-green-500" /> SMS Message
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-6 flex justify-center bg-slate-100 rounded-md mx-6 mb-6">
+                        <div className="bg-white w-64 rounded-2xl shadow-md p-4 border relative">
+                          <div className="bg-slate-100 p-3 rounded-xl rounded-tl-none text-sm text-slate-800 inline-block">
+                            {result.smsMessage}
+                          </div>
+                          <div className="text-[10px] text-slate-400 mt-1 ml-1">Delivered</div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="content" className="mt-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <FileText className="w-5 h-5 text-slate-700" /> Blog Post Outline
+                      </CardTitle>
+                      <CardDescription>SEO-optimized structure for your announcement.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      <div className="space-y-1">
+                        <Label className="text-xs text-slate-500 uppercase">Title</Label>
+                        <div className="font-bold text-xl text-slate-900">{result.blogPostTitle}</div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-slate-500 uppercase">Outline</Label>
+                        <div className="bg-slate-50 p-4 rounded-md border">
+                          <pre className="whitespace-pre-wrap font-sans text-slate-700">{result.blogPostOutline}</pre>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="video" className="mt-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Video className="w-5 h-5 text-red-600" /> YouTube Video
+                      </CardTitle>
+                      <CardDescription>Metadata for your launch video.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      <div className="aspect-video bg-slate-900 rounded-md flex items-center justify-center text-white">
+                        <div className="text-center">
+                          <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center mx-auto mb-2 backdrop-blur-sm">
+                            <div className="w-0 h-0 border-t-[10px] border-t-transparent border-l-[20px] border-l-white border-b-[10px] border-b-transparent ml-1"></div>
+                          </div>
+                          <span className="text-sm font-medium">Video Placeholder</span>
+                        </div>
+                      </div>
+                      <div className="space-y-4">
+                        <div>
+                          <Label className="text-xs text-slate-500 uppercase">Video Title</Label>
+                          <div className="font-medium text-lg">{result.youtubeVideoTitle}</div>
+                        </div>
+                        <div>
+                          <Label className="text-xs text-slate-500 uppercase">Description</Label>
+                          <div className="text-sm text-slate-600 whitespace-pre-wrap">{result.youtubeVideoDescription}</div>
+                        </div>
+                      </div>
+                    </CardContent>
                   </Card>
                 </TabsContent>
               </Tabs>
