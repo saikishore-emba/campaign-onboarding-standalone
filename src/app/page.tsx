@@ -100,7 +100,7 @@ const generateCampaign = async (data: CampaignData): Promise<GeneratedResult> =>
 
 export default function OnboardingPage() {
   // --- State ---
-  const [step, setStep] = useState<'login' | 'team-size' | 'teammate' | 'chat-hub' | 'workflows' | 'final-cta' | 'welcome' | 'input' | 'generating' | 'results'>('login');
+  const [step, setStep] = useState<'login' | 'team-size' | 'teammate' | 'chat-hub' | 'workflows' | 'final-cta' | 'welcome' | 'input' | 'generating' | 'results' | 'workflow-selection'>('login');
   const [formData, setFormData] = useState<CampaignData>({
     productName: '',
     productDescription: '',
@@ -766,8 +766,8 @@ export default function OnboardingPage() {
               <Button variant="outline" onClick={handleRestart}>
                 <RefreshCw className="w-4 h-4 mr-2" /> New Campaign
               </Button>
-              <Button>
-                Export Assets <Share2 className="w-4 h-4 mr-2" />
+              <Button onClick={() => setStep('workflow-selection')}>
+                Explore Workflows <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </div>
           </div>
@@ -1107,6 +1107,70 @@ export default function OnboardingPage() {
                 </TabsContent>
               </Tabs>
             </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 5. Workflow Selection Page
+  if (step === 'workflow-selection') {
+    const workflows = [
+      { title: "Content Repurposing", description: "Turn a single blog post or video into a week's worth of social media posts, emails, and short scripts.", icon: <RefreshCw className="w-6 h-6 text-blue-500" /> },
+      { title: "SEO Blog Post Builder", description: "Keyword Research → Outline Generation → Full Article Drafting → SEO Optimization.", icon: <FileText className="w-6 h-6 text-green-500" /> },
+      { title: "Product Launch Package", description: "Generate Product Hunt tagline, press release, launch email sequence, and social announcement posts.", icon: <Rocket className="w-6 h-6 text-orange-500" /> },
+      { title: "Email Drip Campaign", description: "Create a multi-step email sequence (Welcome Series, Nurture Sequence, Abandoned Cart).", icon: <Mail className="w-6 h-6 text-purple-500" /> },
+      { title: "Ad Creative Variants", description: "Generate 50+ variations of Facebook/Google ad headlines and primary text for A/B testing.", icon: <Layout className="w-6 h-6 text-pink-500" /> },
+      { title: "Webinar Promotion", description: "Create landing page copy, invitation emails, reminder emails, and social promo posts.", icon: <Video className="w-6 h-6 text-red-500" /> },
+      { title: "Newsletter Creator", description: "Turn raw notes or curated links into a formatted, engaging weekly newsletter.", icon: <Mail className="w-6 h-6 text-indigo-500" /> },
+      { title: "Case Study Generator", description: "Transform customer interview transcripts or bullet points into a structured success story.", icon: <Target className="w-6 h-6 text-teal-500" /> },
+      { title: "Competitor Analysis", description: "Research a competitor's website/socials and generate a SWOT analysis or feature comparison table.", icon: <Search className="w-6 h-6 text-slate-500" /> },
+      { title: "Social Media Calendar", description: "Generate 30 days of post ideas and captions based on a specific theme or content pillar.", icon: <MessageSquare className="w-6 h-6 text-blue-400" /> },
+    ];
+
+    return (
+      <div 
+        className="min-h-screen bg-slate-50 p-4 md:p-8"
+        style={{
+          "--primary": "221.2 83.2% 53.3%",
+          "--primary-foreground": "210 40% 98%",
+          "--ring": "221.2 83.2% 53.3%",
+        } as React.CSSProperties}
+      >
+        <div className="max-w-6xl mx-auto space-y-8">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900">Choose Your Workflow</h1>
+              <p className="text-slate-500">Select a workflow to automate your next marketing task.</p>
+            </div>
+            <Button variant="outline" onClick={() => setStep('results')}>
+              Back to Results
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {workflows.map((workflow, index) => (
+              <Card key={index} className="hover:shadow-lg transition-shadow cursor-pointer border-slate-200 hover:border-primary/50 group">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-3 text-lg">
+                    <div className="p-2 bg-slate-100 rounded-lg group-hover:bg-primary/10 transition-colors">
+                      {workflow.icon}
+                    </div>
+                    {workflow.title}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-slate-600 text-sm leading-relaxed">
+                    {workflow.description}
+                  </p>
+                </CardContent>
+                <CardFooter>
+                  <Button className="w-full group-hover:bg-primary group-hover:text-white" variant="secondary">
+                    Select Workflow <ArrowRight className="w-4 h-4 ml-2" />
+                  </Button>
+                </CardFooter>
+              </Card>
+            ))}
           </div>
         </div>
       </div>
