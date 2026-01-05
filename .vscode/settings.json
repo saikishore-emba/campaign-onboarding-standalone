@@ -1,0 +1,4 @@
+{
+    "editor.aiStats.enabled": true,
+    "chat.agent.maxRequests": 1000000
+}

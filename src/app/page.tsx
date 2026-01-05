@@ -22,7 +22,9 @@ import {
   FileText,
   Video,
   Globe,
-  Instagram
+  Instagram,
+  RotateCcw,
+  Download
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,12 +35,25 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { StepProgressBar } from "@/components/ui/step-progress-bar";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // --- Types ---
 type CampaignData = {
   productName: string;
   productDescription: string;
   targetAudience: string;
+  keywords?: string;
+  tone?: string;
+};
+
+type Template = {
+  id: string;
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+  badge: string;
+  inputs: { id: keyof CampaignData; label: string; placeholder: string; type: 'input' | 'textarea' }[];
 };
 
 type GeneratedResult = {
@@ -65,6 +80,18 @@ type GeneratedResult = {
   youtubeVideoDescription: string;
   productHuntTagline: string;
 };
+
+type SavedCampaign = {
+  id: string;
+  name: string;
+  date: string;
+  templates: string[];
+  formData: CampaignData;
+  result: GeneratedResult;
+  publishedTemplates?: string[]; // new field
+};
+
+type GeneratingVariant = 'system-status' | 'magic-show' | 'pet-techniques' | 'minimalist';
 
 // --- Mock AI Generation ---
 const generateCampaign = async (data: CampaignData): Promise<GeneratedResult> => {
@@ -98,63 +125,372 @@ const generateCampaign = async (data: CampaignData): Promise<GeneratedResult> =>
   });
 };
 
+type Step = 'login' | 'team-size' | 'template-selection' | 'teammate' | 'chat-hub' | 'workflows' | 'final-cta' | 'welcome' | 'input' | 'generating' | 'results' | 'workflow-selection' | 'generating-variant-selection' | 'publish' | 'dashboard';
+
 export default function OnboardingPage() {
   // --- State ---
-  const [step, setStep] = useState<'login' | 'team-size' | 'teammate' | 'chat-hub' | 'workflows' | 'final-cta' | 'welcome' | 'input' | 'generating' | 'results' | 'workflow-selection'>('login');
+  const [step, setStep] = useState<Step>('login');
   const [formData, setFormData] = useState<CampaignData>({
     productName: '',
     productDescription: '',
-    targetAudience: ''
+    targetAudience: '',
+    keywords: '',
+    tone: ''
   });
   const [progress, setProgress] = useState(0);
   const [loadingMessage, setLoadingMessage] = useState("Initializing AI...");
   const [result, setResult] = useState<GeneratedResult | null>(null);
+  const [selectedTemplates, setSelectedTemplates] = useState<string[]>([]);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const [savedCampaigns, setSavedCampaigns] = useState<SavedCampaign[]>([]);
+  const [assetToPublish, setAssetToPublish] = useState<string | null>(null);
+  const [generationComplete, setGenerationComplete] = useState(false);
+  const [selectedForPublish, setSelectedForPublish] = useState<string[]>([]);
+  const [viewingCampaign, setViewingCampaign] = useState<SavedCampaign | null>(null);
+
+  const onboardingSteps = ["Welcome", "Team Size", "Select Templates", "Provide Details", "Generate", "View Results", "Publish", "Dashboard"];
+  const getCurrentStep = () => {
+    switch (step) {
+      case 'welcome': return 1;
+      case 'team-size': return 2;
+      case 'template-selection': return 3;
+      case 'input': return 4;
+      case 'generating': return 5;
+      case 'results': return 6;
+      case 'publish': return 7;
+      case 'dashboard': return 8;
+      default: return 0;
+    }
+  };
+
+  const allTemplates: Template[] = [
+    {
+      id: 'social-suite',
+      title: "Social Media Suite",
+      description: "Multi-platform updates for Instagram, LinkedIn, & X.",
+      icon: <Share2 className="w-6 h-6 text-blue-500" />,
+      badge: "Popular for Startups",
+      inputs: [
+        { id: 'productName', label: 'Product Name', placeholder: 'e.g. Shopwise', type: 'input' },
+        { id: 'productDescription', label: 'Product Description', placeholder: 'Describe your product...', type: 'textarea' },
+        { id: 'tone', label: 'Tone of Voice', placeholder: 'e.g. Professional, Witty', type: 'input' }
+      ]
+    },
+    {
+      id: 'email-campaign',
+      title: "Email Marketing Campaign",
+      description: "Assets for product launches or newsletters.",
+      icon: <Mail className="w-6 h-6 text-purple-500" />,
+      badge: "Used by 10,000+ Founders",
+      inputs: [
+        { id: 'productName', label: 'Product Name', placeholder: 'e.g. Shopwise', type: 'input' },
+        { id: 'targetAudience', label: 'Target Audience', placeholder: 'Who is this for?', type: 'input' }
+      ]
+    },
+    {
+      id: 'ad-copy',
+      title: "High-Conversion Ad Copy",
+      description: "Templates for Google and Meta ads.",
+      icon: <Layout className="w-6 h-6 text-pink-500" />,
+      badge: "",
+      inputs: [
+        { id: 'productName', label: 'Product Name', placeholder: 'e.g. Shopwise', type: 'input' },
+        { id: 'productDescription', label: 'Product Description', placeholder: 'Describe your product...', type: 'textarea' },
+        { id: 'targetAudience', label: 'Target Audience', placeholder: 'Who is this for?', type: 'input' }
+      ]
+    },
+    {
+      id: 'seo-blog',
+      title: "SEO Blog Post",
+      description: "Generate a structured, long-form article.",
+      icon: <FileText className="w-6 h-6 text-green-500" />,
+      badge: "Certified Brand-Voice",
+      inputs: [
+        { id: 'productName', label: 'Topic / Product', placeholder: 'e.g. The Future of AI', type: 'input' },
+        { id: 'keywords', label: 'Target Keywords', placeholder: 'e.g. AI, Marketing, Automation', type: 'input' }
+      ]
+    },
+    { 
+      id: 'content-repurpose',
+      title: "Content Repurposing", 
+      description: "Turn a single blog post or video into a week's worth of social media posts, emails, and short scripts.", 
+      icon: <RefreshCw className="w-6 h-6 text-blue-500" />, 
+      badge: "",
+      inputs: [
+        { id: 'productDescription', label: 'Source Content', placeholder: 'Paste your blog post or transcript here...', type: 'textarea' }
+      ]
+    },
+    { 
+      id: 'seo-builder',
+      title: "SEO Blog Post Builder", 
+      description: "Keyword Research → Outline Generation → Full Article Drafting → SEO Optimization.", 
+      icon: <FileText className="w-6 h-6 text-green-500" />, 
+      badge: "",
+      inputs: [
+        { id: 'keywords', label: 'Main Keyword', placeholder: 'e.g. Content Marketing', type: 'input' }
+      ]
+    },
+    { 
+      id: 'product-launch',
+      title: "Product Launch Package", 
+      description: "Generate Product Hunt tagline, press release, launch email sequence, and social announcement posts.", 
+      icon: <Rocket className="w-6 h-6 text-orange-500" />, 
+      badge: "Popular for Startups",
+      inputs: [
+        { id: 'productName', label: 'Product Name', placeholder: 'e.g. Shopwise', type: 'input' },
+        { id: 'productDescription', label: 'Launch Details', placeholder: 'What are you launching?', type: 'textarea' }
+      ]
+    },
+    { 
+      id: 'email-drip',
+      title: "Email Drip Campaign", 
+      description: "Create a multi-step email sequence (Welcome Series, Nurture Sequence, Abandoned Cart).", 
+      icon: <Mail className="w-6 h-6 text-purple-500" />, 
+      badge: "",
+      inputs: [
+        { id: 'productName', label: 'Company Name', placeholder: 'e.g. Shopwise', type: 'input' },
+        { id: 'targetAudience', label: 'Audience Segment', placeholder: 'e.g. New Signups', type: 'input' }
+      ]
+    },
+    { 
+      id: 'ad-variants',
+      title: "Ad Creative Variants", 
+      description: "Generate 50+ variations of Facebook/Google ad headlines and primary text for A/B testing.", 
+      icon: <Layout className="w-6 h-6 text-pink-500" />, 
+      badge: "",
+      inputs: [
+        { id: 'productName', label: 'Product Name', placeholder: 'e.g. Shopwise', type: 'input' },
+        { id: 'productDescription', label: 'Value Proposition', placeholder: 'Why should they buy?', type: 'textarea' }
+      ]
+    },
+    { 
+      id: 'webinar-promo',
+      title: "Webinar Promotion", 
+      description: "Create landing page copy, invitation emails, reminder emails, and social promo posts.", 
+      icon: <Video className="w-6 h-6 text-red-500" />, 
+      badge: "",
+      inputs: [
+        { id: 'productName', label: 'Webinar Title', placeholder: 'e.g. Master AI Marketing', type: 'input' },
+        { id: 'productDescription', label: 'Webinar Details', placeholder: 'Date, Time, Speakers...', type: 'textarea' }
+      ]
+    },
+    { 
+      id: 'newsletter',
+      title: "Newsletter Creator", 
+      description: "Turn raw notes or curated links into a formatted, engaging weekly newsletter.", 
+      icon: <Mail className="w-6 h-6 text-indigo-500" />, 
+      badge: "",
+      inputs: [
+        { id: 'productDescription', label: 'Newsletter Content / Links', placeholder: 'Paste your links or notes here...', type: 'textarea' }
+      ]
+    },
+    { 
+      id: 'case-study',
+      title: "Case Study Generator", 
+      description: "Transform customer interview transcripts or bullet points into a structured success story.", 
+      icon: <Target className="w-6 h-6 text-teal-500" />, 
+      badge: "",
+      inputs: [
+        { id: 'productName', label: 'Customer Name', placeholder: 'e.g. Acme Corp', type: 'input' },
+        { id: 'productDescription', label: 'Success Metrics / Story', placeholder: 'Describe the results...', type: 'textarea' }
+      ]
+    },
+    { 
+      id: 'competitor-analysis',
+      title: "Competitor Analysis", 
+      description: "Research a competitor's website/socials and generate a SWOT analysis or feature comparison table.", 
+      icon: <Search className="w-6 h-6 text-slate-500" />, 
+      badge: "",
+      inputs: [
+        { id: 'productName', label: 'Competitor Name', placeholder: 'e.g. CompetitorX', type: 'input' },
+        { id: 'keywords', label: 'Competitor Website', placeholder: 'e.g. www.competitorx.com', type: 'input' }
+      ]
+    },
+    { 
+      id: 'social-calendar',
+      title: "Social Media Calendar", 
+      description: "Generate 30 days of post ideas and captions based on a specific theme or content pillar.", 
+      icon: <MessageSquare className="w-6 h-6 text-blue-400" />, 
+      badge: "",
+      inputs: [
+        { id: 'productName', label: 'Brand Name', placeholder: 'e.g. Shopwise', type: 'input' },
+        { id: 'keywords', label: 'Content Pillars', placeholder: 'e.g. Education, Behind the Scenes', type: 'input' }
+      ]
+    },
+  ];
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 300) {
+        setShowScrollTop(true);
+      } else {
+        setShowScrollTop(false);
+      }
+    };
+
+    if (step === 'template-selection') {
+      window.addEventListener('scroll', handleScroll);
+      return () => {
+        window.removeEventListener('scroll', handleScroll);
+        setShowScrollTop(false); // Reset on leaving the page
+      };
+    }
+  }, [step]);
 
   // --- Handlers ---
   const handleStart = () => setStep('input');
 
-  const handleGenerate = async () => {
-    setStep('generating');
-    
-    // Simulate progress steps
+  useEffect(() => {
+    if (step !== 'generating') {
+      return;
+    }
+
+    setGenerationComplete(false);
+    setProgress(0);
+    setLoadingMessage("Initializing AI...");
+
     const messages = [
-      "Analyzing market trends...",
-      "Identifying buyer personas...",
+      "Analyzing your product details...",
+      "Researching market trends for you...",
+      "Identifying key audience personas...",
       "Drafting high-converting copy...",
-      "Finalizing campaign assets..."
+      "Polishing the final campaign assets..."
     ];
-    
-    let currentProgress = 0;
-    const interval = setInterval(() => {
-      currentProgress += 5;
-      setProgress(currentProgress);
-      
-      const messageIndex = Math.floor((currentProgress / 100) * messages.length);
-      if (messages[messageIndex]) {
-        setLoadingMessage(messages[messageIndex]);
-      }
 
-      if (currentProgress >= 100) {
-        clearInterval(interval);
-      }
-    }, 150);
+    const progressInterval = setInterval(() => {
+      setProgress(prev => {
+        const newProgress = prev + 10;
+        if (newProgress >= 100) {
+          clearInterval(progressInterval);
+          return 100;
+        }
+        const messageIndex = Math.floor((newProgress / 100) * (messages.length - 1));
+        if (messages[messageIndex]) {
+            setLoadingMessage(messages[messageIndex]);
+        }
+        return newProgress;
+      });
+    }, 900);
 
-    // Call Mock AI
-    const generated = await generateCampaign(formData);
-    setResult(generated);
-    
-    // Wait for progress bar to finish visually
-    setTimeout(() => {
-      clearInterval(interval);
-      setStep('results');
-    }, 3000);
-  };
+    // Start AI generation
+    generateCampaign(formData).then(generated => {
+      setResult(generated);
+      try {
+        const newCamp: SavedCampaign = {
+          id: String(Date.now()),
+          name: formData.productName || `Campaign ${new Date().toLocaleString()}`,
+          date: new Date().toISOString(),
+          templates: selectedTemplates,
+          formData: { ...formData },
+          result: generated,
+        };
+        const updated = [newCamp, ...savedCampaigns];
+        setSavedCampaigns(updated);
+        localStorage.setItem('savedCampaigns', JSON.stringify(updated));
+      } catch (e) {
+        // ignore localStorage issues
+      }
+    });
+
+    // Set up navigation to results after 10 seconds
+    const navigationTimeout = setTimeout(() => {
+      setLoadingMessage("Campaign Generated!");
+      setGenerationComplete(true);
+      setTimeout(() => {
+        if (document.hidden) return; // Don't navigate if tab is not active
+        setStep('results');
+      }, 1000); // Wait 1s before navigating
+    }, 10000); // Total time is 10s
+
+    // Cleanup function to clear intervals and timeouts if the component unmounts
+    // or the user navigates away.
+    return () => {
+      clearInterval(progressInterval);
+      clearTimeout(navigationTimeout);
+    };
+  }, [step]);
 
   const handleRestart = () => {
-    setStep('welcome');
-    setFormData({ productName: '', productDescription: '', targetAudience: '' });
+    // go back to template selection so user can start a new campaign
+    setStep('template-selection');
+    setFormData({ productName: '', productDescription: '', targetAudience: '', keywords: '', tone: '' });
     setResult(null);
     setProgress(0);
+    setSelectedTemplates([]);
+    setSelectedForPublish([]);
+  };
+
+  // Load saved campaigns on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('savedCampaigns');
+      if (raw) setSavedCampaigns(JSON.parse(raw));
+    } catch (e) {
+      // ignore
+    }
+  }, []);
+
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text).catch(() => {
+      // fallback
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    });
+  };
+
+  const handleExportAll = (campaign: SavedCampaign | { templates: string[]; result: GeneratedResult; name?: string }) => {
+    const name = ('name' in campaign && campaign.name) ? campaign.name : `campaign-${Date.now()}`;
+    const htmlParts: string[] = [];
+    htmlParts.push(`<html><head><meta charset="utf-8"><title>${name}</title></head><body>`);
+    if ('formData' in campaign) {
+      htmlParts.push(`<h1>${campaign.name}</h1><p>Generated on: ${new Date(campaign.date).toLocaleString()}</p>`);
+    } else {
+      htmlParts.push(`<h1>${name}</h1>`);
+    }
+    const r = ('result' in campaign) ? campaign.result : (campaign as any).result;
+    const templates = ('templates' in campaign) ? campaign.templates : [];
+    templates.forEach(tid => {
+      const t = allTemplates.find(x => x.id === tid);
+      htmlParts.push(`<section style="margin:24px 0;padding:12px;border:1px solid #eee;border-radius:8px;">`);
+      htmlParts.push(`<h2>${t?.title || tid}</h2>`);
+      // map some known fields
+      if (tid === 'social-suite' || tid === 'social-post') htmlParts.push(`<pre>${r.socialPost}</pre>`);
+      else if (tid === 'email-campaign') htmlParts.push(`<h3>Subject</h3><div>${r.emailSubject}</div><pre>${r.emailBody}</pre>`);
+      else if (tid === 'google-ads') htmlParts.push(`<h3>${r.googleAdHeadline}</h3><p>${r.googleAdDescription}</p>`);
+      else if (tid === 'landing-page') htmlParts.push(`<h3>${r.landingPageHeadline}</h3><p>${r.landingPageSubheadline}</p>`);
+      else htmlParts.push(`<pre>${r.socialPost}</pre>`);
+      htmlParts.push(`</section>`);
+    });
+    htmlParts.push('</body></html>');
+    const blob = new Blob([htmlParts.join('\n')], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${name.replace(/[^a-z0-9_-]/gi, '_')}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const toggleTemplate = (id: string) => {
+    setSelectedTemplates(prev => 
+      prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
+    );
+  };
+
+  const togglePublishSelection = (id: string) => {
+    setSelectedForPublish(prev =>
+      prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
+    );
   };
 
   // --- Render Steps ---
@@ -245,8 +581,8 @@ export default function OnboardingPage() {
           "--ring": "221.2 83.2% 53.3%",
         } as React.CSSProperties}
       >
-        <div className="w-full max-w-md mx-auto pt-8 px-4 mb-8">
-          <Progress value={20} className="h-2 [&>div]:bg-black" />
+        <div className="w-full max-w-2xl mx-auto pt-8 px-4 mb-8">
+          <StepProgressBar steps={onboardingSteps} currentStep={getCurrentStep()} />
         </div>
 
         <div className="flex-1 flex flex-col items-center justify-center p-4">
@@ -279,12 +615,114 @@ export default function OnboardingPage() {
             </div>
 
             <div className="flex justify-start pt-4">
-              <Button size="lg" onClick={() => setStep('teammate')} className="px-8 h-12 text-lg">
+              <Button size="lg" onClick={() => setStep('template-selection')} className="px-8 h-12 text-lg">
                 Continue <ArrowRight className="ml-2 w-5 h-5" />
               </Button>
             </div>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  // 0.6 Template Selection Screen
+  if (step === 'template-selection') {
+    return (
+      <div 
+        className="min-h-screen bg-[#F9FAFB] flex flex-col font-sans"
+        style={{
+          "--primary": "221.2 83.2% 53.3%",
+          "--primary-foreground": "210 40% 98%",
+        } as React.CSSProperties}
+      >
+        <div className="w-full max-w-4xl mx-auto pt-8 px-4 mb-8">
+          <StepProgressBar steps={onboardingSteps} currentStep={getCurrentStep()} />
+          <div className="flex items-center justify-between mt-8 mb-2">
+            <h2 className="text-2xl font-bold text-black">copy.ai</h2>
+            {selectedTemplates.length > 0 && (
+              <Badge className="bg-black text-white text-sm px-3 py-1">
+                {selectedTemplates.length} Selected
+              </Badge>
+            )}
+          </div>
+        </div>
+
+        <div className="flex-1 flex flex-col items-center justify-center p-4 pb-32">
+          <div className="w-full max-w-4xl space-y-8 text-center">
+            <div className="space-y-2">
+              <h1 className="text-4xl font-bold text-slate-900">What would you like to create today?</h1>
+              <p className="text-lg text-slate-500">Select one or more templates to generate your marketing assets.</p>
+            </div>
+            
+            <div className="relative w-full max-w-lg mx-auto">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <Input 
+                placeholder="Search for a template..."
+                className="h-12 pl-12 bg-white border-slate-300"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
+              {allTemplates.map((template, index) => {
+                const isSelected = selectedTemplates.includes(template.id);
+                return (
+                  <div 
+                    key={index} 
+                    onClick={() => toggleTemplate(template.id)}
+                    className={`bg-white border rounded-xl p-6 text-left shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group cursor-pointer relative ${isSelected ? 'border-blue-600 ring-2 ring-blue-100' : 'border-slate-200'}`}
+                  >
+                    {isSelected && (
+                      <div className="absolute top-4 right-4 text-blue-600">
+                        <CheckCircle className="w-6 h-6 fill-blue-100" />
+                      </div>
+                    )}
+                    <div className="flex justify-between items-start">
+                      <div className={`p-3 rounded-lg mb-4 ${isSelected ? 'bg-blue-50' : 'bg-slate-100'}`}>
+                        {template.icon}
+                      </div>
+                      {template.badge && !isSelected && (
+                        <Badge variant="secondary" className="bg-blue-50 text-blue-700">{template.badge}</Badge>
+                      )}
+                    </div>
+                    <h3 className="text-xl font-semibold text-slate-800 mb-2">{template.title}</h3>
+                    <p className="text-slate-500 mb-6">{template.description}</p>
+                    <Button 
+                      className={`w-full ${isSelected ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-white border-2 border-slate-200 text-slate-700 hover:border-blue-600 hover:text-blue-600'}`}
+                      variant={isSelected ? "default" : "outline"}
+                    >
+                      {isSelected ? "Selected" : "Select Template"}
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white border-t p-6 fixed bottom-0 left-0 right-0 z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+            <div className="max-w-4xl mx-auto flex justify-between items-center">
+                <Button variant="ghost" size="lg" onClick={() => setStep('team-size')} className="text-slate-600 hover:text-slate-900 hover:bg-slate-100">
+                    <ArrowRight className="mr-2 w-5 h-5 rotate-180" /> Previous
+                </Button>
+                <Button 
+                  size="lg" 
+                  onClick={() => setStep('input')} 
+                  disabled={selectedTemplates.length === 0}
+                  className="px-8 h-12 text-lg bg-black hover:bg-slate-800 text-white shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Continue ({selectedTemplates.length}) <ArrowRight className="ml-2 w-5 h-5" />
+                </Button>
+            </div>
+        </div>
+
+        {showScrollTop && (
+          <button 
+            onClick={scrollToTop}
+            className="fixed bottom-24 right-8 bg-black text-white rounded-full p-3 shadow-lg hover:bg-slate-800 transition-colors z-20"
+          >
+            <ArrowRight className="w-6 h-6 -rotate-90" />
+          </button>
+        )}
       </div>
     );
   }
@@ -300,8 +738,8 @@ export default function OnboardingPage() {
         } as React.CSSProperties}
       >
         {/* Top Progress */}
-        <div className="w-full max-w-md mx-auto pt-8 px-4 mb-8">
-           <Progress value={40} className="h-2 [&>div]:bg-black" />
+        <div className="w-full max-w-2xl mx-auto pt-8 px-4 mb-8">
+           <StepProgressBar steps={["Welcome", "Team Size", "Features", "Chat", "Workflows", "Start"]} currentStep={3} />
         </div>
 
         {/* Main Content Area - Purple Background */}
@@ -394,8 +832,8 @@ export default function OnboardingPage() {
         } as React.CSSProperties}
       >
         {/* Top Progress */}
-        <div className="w-full max-w-md mx-auto pt-8 px-4 mb-8">
-           <Progress value={60} className="h-2 [&>div]:bg-black" />
+        <div className="w-full max-w-2xl mx-auto pt-8 px-4 mb-8">
+           <StepProgressBar steps={["Welcome", "Team Size", "Features", "Chat", "Workflows", "Start"]} currentStep={4} />
         </div>
 
         {/* Main Content Area */}
@@ -472,8 +910,8 @@ export default function OnboardingPage() {
         } as React.CSSProperties}
       >
         {/* Top Progress */}
-        <div className="w-full max-w-md mx-auto pt-8 px-4 mb-8">
-           <Progress value={80} className="h-2 [&>div]:bg-black" />
+        <div className="w-full max-w-2xl mx-auto pt-8 px-4 mb-8">
+           <StepProgressBar steps={["Welcome", "Team Size", "Features", "Chat", "Workflows", "Start"]} currentStep={5} />
         </div>
 
         {/* Main Content Area */}
@@ -576,8 +1014,8 @@ export default function OnboardingPage() {
         } as React.CSSProperties}
       >
         {/* Top Progress */}
-        <div className="w-full max-w-md mx-auto pt-8 px-4 mb-8">
-           <Progress value={100} className="h-2 [&>div]:bg-black" />
+        <div className="w-full max-w-2xl mx-auto pt-8 px-4 mb-8">
+           <StepProgressBar steps={["Welcome", "Team Size", "Features", "Chat", "Workflows", "Start"]} currentStep={6} />
         </div>
 
         {/* Main Content Area */}
@@ -651,55 +1089,70 @@ export default function OnboardingPage() {
     );
   }
 
-  // 2. Input Screen (The "Golden Path" - Minimal Input)
+  // 2. Input Screen (Dynamic based on selection)
   if (step === 'input') {
+    // Get all required inputs from selected templates
+    const requiredInputs = allTemplates
+      .filter(t => selectedTemplates.includes(t.id))
+      .flatMap(t => t.inputs);
+
+    // Deduplicate inputs based on ID
+    const uniqueInputs = Array.from(new Map(requiredInputs.map(item => [item.id, item])).values());
+
     return (
       <div 
-        className="min-h-screen bg-slate-50 flex items-center justify-center p-4"
+        className="min-h-screen bg-slate-50 flex flex-col p-4"
         style={{
           "--primary": "221.2 83.2% 53.3%",
           "--primary-foreground": "210 40% 98%",
           "--ring": "221.2 83.2% 53.3%",
         } as React.CSSProperties}
       >
-        <Card className="w-full max-w-lg shadow-xl border-slate-200">
-          <CardHeader>
-            <CardTitle className="text-2xl">Tell us about your product</CardTitle>
-            <CardDescription>
-              We need just a few details to craft your campaign.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="name">Product Name</Label>
-              <Input 
-                id="name" 
-                placeholder="e.g. Shopwise" 
-                value={formData.productName}
-                onChange={(e) => setFormData({...formData, productName: e.target.value})}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="description">What does it do?</Label>
-              <Textarea 
-                id="description" 
-                placeholder="Describe your product in a sentence or two..." 
-                className="min-h-[100px]"
-                value={formData.productDescription}
-                onChange={(e) => setFormData({...formData, productDescription: e.target.value})}
-              />
-            </div>
-          </CardContent>
-          <CardFooter className="flex justify-between">
-            <Button variant="ghost" onClick={() => setStep('welcome')}>Back</Button>
-            <Button 
-              onClick={handleGenerate} 
-              disabled={!formData.productName || !formData.productDescription}
-            >
-              Generate Campaign <Sparkles className="ml-2 w-4 h-4" />
-            </Button>
-          </CardFooter>
-        </Card>
+        <div className="w-full max-w-2xl mx-auto pt-8 px-4 mb-8">
+          <StepProgressBar steps={onboardingSteps} currentStep={getCurrentStep()} />
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <Card className="w-full max-w-lg shadow-xl border-slate-200">
+            <CardHeader>
+              <CardTitle className="text-2xl">Tell us about your product</CardTitle>
+              <CardDescription>
+                We need a few details to generate assets for your <strong>{selectedTemplates.length} selected templates</strong>.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {uniqueInputs.map((input) => (
+                <div key={input.id} className="space-y-2">
+                  <Label htmlFor={input.id}>{input.label}</Label>
+                  {input.type === 'textarea' ? (
+                    <Textarea 
+                      id={input.id} 
+                      placeholder={input.placeholder} 
+                      className="min-h-[100px]"
+                      value={formData[input.id] || ''}
+                      onChange={(e) => setFormData({...formData, [input.id]: e.target.value})}
+                    />
+                  ) : (
+                    <Input 
+                      id={input.id} 
+                      placeholder={input.placeholder} 
+                      value={formData[input.id] || ''}
+                      onChange={(e) => setFormData({...formData, [input.id]: e.target.value})}
+                    />
+                  )}
+                </div>
+              ))}
+            </CardContent>
+            <CardFooter className="flex justify-between">
+              <Button variant="ghost" onClick={() => setStep('template-selection')}>Back</Button>
+              <Button 
+                onClick={() => setStep('generating')} 
+                disabled={uniqueInputs.some(input => !formData[input.id])}
+              >
+                Generate Campaign <Sparkles className="ml-2 w-4 h-4" />
+              </Button>
+            </CardFooter>
+          </Card>
+        </div>
       </div>
     );
   }
@@ -708,32 +1161,52 @@ export default function OnboardingPage() {
   if (step === 'generating') {
     return (
       <div 
-        className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-4"
+        className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4"
         style={{
           "--primary": "221.2 83.2% 53.3%",
           "--primary-foreground": "210 40% 98%",
           "--ring": "221.2 83.2% 53.3%",
         } as React.CSSProperties}
       >
-        <div className="w-full max-w-md space-y-8 text-center">
-          <div className="relative w-24 h-24 mx-auto">
-            <div className="absolute inset-0 bg-primary/20 rounded-full animate-ping"></div>
-            <div className="relative bg-primary/10 p-6 rounded-full border border-primary/50">
-              <Loader2 className="w-12 h-12 text-primary animate-spin" />
+        <div className="w-full max-w-2xl mx-auto pt-8 px-4 mb-8 self-start">
+          <StepProgressBar steps={onboardingSteps} currentStep={getCurrentStep()} />
+        </div>
+        <div className="flex-1 flex items-center justify-center w-full">
+          <div className="w-full max-w-md space-y-8 text-center">
+            <div className="relative w-24 h-24 mx-auto">
+              <div className="absolute inset-0 bg-primary/20 rounded-full animate-ping"></div>
+              <div className="relative bg-primary/10 p-6 rounded-full border border-primary/50">
+                <Loader2 className="w-12 h-12 text-primary animate-spin" />
+              </div>
             </div>
-          </div>
-          
-          <div className="space-y-2">
-            <h2 className="text-2xl font-semibold animate-pulse">{loadingMessage}</h2>
-            <p className="text-slate-400">This usually takes about 30 seconds...</p>
-          </div>
+            
+            <div className="space-y-2">
+              <h2 className="text-2xl font-semibold animate-pulse text-slate-800">
+                {generationComplete ? "Campaign Generated!" : loadingMessage}
+              </h2>
+              <p className="text-slate-500">
+                {generationComplete ? "Redirecting you to the results..." : "This usually takes about 60 seconds..."}
+              </p>
+            </div>
 
-          <div className="space-y-2">
-            <Progress value={progress} className="h-2 bg-slate-800" />
-            <div className="flex justify-between text-xs text-slate-500">
-              <span>Start</span>
-              <span>{progress}%</span>
-              <span>Finish</span>
+            <div className="space-y-2">
+              <Progress value={progress} className="h-2 bg-slate-200" />
+              <div className="flex justify-between text-xs text-slate-500">
+                <span>Start</span>
+                <span>{progress}%</span>
+                <span>Finish</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-center gap-4">
+                <Button variant="outline" onClick={() => setStep('input')}>
+                    <ArrowRight className="mr-2 w-4 h-4 rotate-180" /> Back
+                </Button>
+                {generationComplete && (
+                  <Button onClick={() => setStep('results')} size="lg" className="animate-pulse">
+                    View Results <ArrowRight className="ml-2 w-5 h-5" />
+                  </Button>
+                )}
             </div>
           </div>
         </div>
@@ -741,373 +1214,119 @@ export default function OnboardingPage() {
     );
   }
 
-  // 4. Results Page (The "Aha!" Moment)
+  // 4. Results Screen (The "Aha!" Moment)
   if (step === 'results' && result) {
     return (
-      <div 
-        className="min-h-screen bg-slate-50 p-4 md:p-8"
-        style={{
-          "--primary": "221.2 83.2% 53.3%",
-          "--primary-foreground": "210 40% 98%",
-          "--ring": "221.2 83.2% 53.3%",
-        } as React.CSSProperties}
-      >
-        <div className="max-w-5xl mx-auto space-y-8">
-          {/* Header */}
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div>
-              <Badge variant="outline" className="mb-2 bg-blue-50 text-blue-700 border-blue-200">
-                <CheckCircle className="w-3 h-3 mr-1" /> Campaign Generated
-              </Badge>
-              <h1 className="text-3xl font-bold text-slate-900">Launch Strategy: {formData.productName}</h1>
-              <p className="text-slate-500">Here is your AI-generated starter kit.</p>
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={handleRestart}>
-                <RefreshCw className="w-4 h-4 mr-2" /> New Campaign
-              </Button>
-              <Button onClick={() => setStep('workflow-selection')}>
-                Explore Workflows <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            </div>
-          </div>
+      <div className="min-h-screen bg-slate-50 p-6">
+        <div className="w-full max-w-4xl mx-auto pt-8 px-4 mb-8">
+          <StepProgressBar steps={onboardingSteps} currentStep={getCurrentStep()} />
+        </div>
+        <div className="max-w-4xl mx-auto">
+          <main>
+            <div className="space-y-8">
+              {/* Header */}
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                  <h1 className="text-3xl font-bold text-slate-900">Your Campaign Assets</h1>
+                  <p className="text-slate-500">Generated for <strong>{formData.productName}</strong>. Select assets to publish.</p>
+                </div>
+                <div className="flex gap-3">
+                  <Button variant="outline" onClick={handleRestart}>
+                    <RotateCcw className="w-4 h-4 mr-2" /> Start Over
+                  </Button>
+                  <Button 
+                    onClick={() => setStep('publish')}
+                    disabled={selectedForPublish.length === 0}
+                  >
+                    <Zap className="w-4 h-4 mr-2" /> Publish Selected ({selectedForPublish.length})
+                  </Button>
+                </div>
+              </div>
 
-          {/* Content Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            
-            {/* Left Column: Strategy */}
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Target className="w-5 h-5 text-primary" /> Target Audience
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-slate-700">{result.audiencePersona}</p>
-                </CardContent>
-              </Card>
+              {/* Generated Assets Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {selectedTemplates.map(templateId => {
+                  const template = allTemplates.find(t => t.id === templateId);
+                  if (!template) return null;
+                  const isSelected = selectedForPublish.includes(templateId);
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Rocket className="w-5 h-5 text-primary" /> Tagline
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-xl font-medium text-slate-900">"{result.tagline}"</p>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Right Column: Content Assets */}
-            <div className="md:col-span-2">
-              <Tabs defaultValue="social" className="w-full">
-                <TabsList className="grid w-full grid-cols-4 h-auto flex-wrap">
-                  <TabsTrigger value="social">Social</TabsTrigger>
-                  <TabsTrigger value="email">Email</TabsTrigger>
-                  <TabsTrigger value="google">Google Ads</TabsTrigger>
-                  <TabsTrigger value="meta">Meta Ads</TabsTrigger>
-                  <TabsTrigger value="landing">Landing Page</TabsTrigger>
-                  <TabsTrigger value="mobile">Mobile/SMS</TabsTrigger>
-                  <TabsTrigger value="content">Content</TabsTrigger>
-                  <TabsTrigger value="video">Video</TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="social" className="mt-4">
-                  <div className="space-y-4">
-                    <Card>
+                  return (
+                    <Card key={templateId} className={`flex flex-col h-full transition-all ${isSelected ? 'border-blue-600 ring-2 ring-blue-100' : 'border-slate-200'}`}>
                       <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <MessageSquare className="w-5 h-5 text-blue-500" /> LinkedIn / Twitter Post
-                        </CardTitle>
-                        <CardDescription>Optimized for engagement and clicks.</CardDescription>
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="flex items-center gap-2 text-lg">
+                            {template.icon} {template.title}
+                          </CardTitle>
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => togglePublishSelection(templateId)}
+                            id={`select-${templateId}`}
+                          />
+                        </div>
                       </CardHeader>
-                      <CardContent className="bg-slate-50 p-6 rounded-md mx-6 mb-6 border">
-                        <pre className="whitespace-pre-wrap font-sans text-slate-700">{result.socialPost}</pre>
+                      <CardContent className="flex-1 bg-slate-50/50 p-6 border-y">
+                        {/* Dynamic Content Rendering based on Template ID */}
+                        {templateId === 'social-suite' && (
+                          <div className="whitespace-pre-wrap font-sans text-slate-700">{result.socialPost}</div>
+                        )}
+                        {templateId === 'email-campaign' && (
+                          <div className="space-y-4">
+                            <div><span className="font-bold text-xs uppercase text-slate-500">Subject:</span> {result.emailSubject}</div>
+                            <div className="whitespace-pre-wrap font-sans text-slate-700">{result.emailBody}</div>
+                          </div>
+                        )}
+                        {templateId === 'ad-copy' && (
+                          <div className="space-y-4">
+                            <div className="bg-white p-4 rounded border shadow-sm">
+                              <div className="text-blue-800 text-xl hover:underline cursor-pointer">{result.googleAdHeadline}</div>
+                              <div className="text-green-700 text-sm">www.example.com/ad</div>
+                              <div className="text-slate-600 text-sm">{result.googleAdDescription}</div>
+                            </div>
+                            <div className="space-y-2">
+                              <div className="text-sm text-slate-900">{result.metaAdPrimaryText}</div>
+                              <div className="bg-slate-100 h-48 flex items-center justify-center text-slate-400 rounded">[Ad Image]</div>
+                              <div className="bg-slate-50 p-2 border rounded">
+                                <div className="font-bold text-sm">{result.metaAdHeadline}</div>
+                                <div className="text-xs text-slate-500">{result.metaAdDescription}</div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        {templateId === 'product-launch' && (
+                          <div className="space-y-2">
+                            <div className="font-bold">Product Hunt Tagline</div>
+                            <div className="whitespace-pre-wrap font-sans text-slate-700">{result.productHuntTagline}</div>
+                          </div>
+                        )}
+                        {/* Fallback for other templates */}
+                        {!['social-suite', 'email-campaign', 'ad-copy', 'product-launch'].includes(templateId) && (
+                          <div className="whitespace-pre-wrap font-sans text-slate-700">
+                            {result.socialPost} 
+                          </div>
+                        )}
                       </CardContent>
-                      <CardFooter className="justify-end">
-                        <Button variant="ghost" size="sm">
-                          <Copy className="w-4 h-4 mr-2" /> Copy Text
+                      <CardFooter className="justify-end pt-4">
+                        <Button variant="ghost" size="sm" onClick={() => {
+                          let text = '';
+                          if (templateId === 'social-suite') text = result.socialPost;
+                          else if (templateId === 'email-campaign') text = `${result.emailSubject}\n\n${result.emailBody}`;
+                          else if (templateId === 'ad-copy') text = `${result.googleAdHeadline}\n${result.googleAdDescription}\n\n${result.metaAdPrimaryText}`;
+                          else if (templateId === 'product-launch') text = result.productHuntTagline;
+                          else text = result.socialPost;
+                          handleCopy(text);
+                        }}>
+                          <Copy className="w-4 h-4 mr-2" /> Copy
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleExportAll({ templates: [templateId], result, name: `${formData.productName}-${templateId}` })}>
+                          <Download className="w-4 h-4 mr-2" /> Export
                         </Button>
                       </CardFooter>
                     </Card>
-
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Instagram className="w-5 h-5 text-pink-500" /> Instagram Caption
-                        </CardTitle>
-                        <CardDescription>Visual-first copy with hashtags.</CardDescription>
-                      </CardHeader>
-                      <CardContent className="bg-slate-50 p-6 rounded-md mx-6 mb-6 border">
-                        <pre className="whitespace-pre-wrap font-sans text-slate-700">{result.instagramCaption}</pre>
-                      </CardContent>
-                      <CardFooter className="justify-end">
-                        <Button variant="ghost" size="sm">
-                          <Copy className="w-4 h-4 mr-2" /> Copy Text
-                        </Button>
-                      </CardFooter>
-                    </Card>
-
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Rocket className="w-5 h-5 text-orange-500" /> Product Hunt Tagline
-                        </CardTitle>
-                        <CardDescription>Punchy one-liner for your launch.</CardDescription>
-                      </CardHeader>
-                      <CardContent className="bg-slate-50 p-6 rounded-md mx-6 mb-6 border">
-                        <p className="font-medium text-slate-900">{result.productHuntTagline}</p>
-                      </CardContent>
-                      <CardFooter className="justify-end">
-                        <Button variant="ghost" size="sm">
-                          <Copy className="w-4 h-4 mr-2" /> Copy Text
-                        </Button>
-                      </CardFooter>
-                    </Card>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="email" className="mt-4">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Mail className="w-5 h-5 text-purple-500" /> Launch Email
-                      </CardTitle>
-                      <CardDescription>Send this to your waitlist.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="space-y-1">
-                        <Label className="text-xs text-slate-500 uppercase">Subject Line</Label>
-                        <div className="font-medium text-slate-900">{result.emailSubject}</div>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs text-slate-500 uppercase">Body</Label>
-                        <div className="bg-slate-50 p-4 rounded-md border">
-                          <pre className="whitespace-pre-wrap font-sans text-slate-700">{result.emailBody}</pre>
-                        </div>
-                      </div>
-                    </CardContent>
-                    <CardFooter className="justify-end">
-                      <Button variant="ghost" size="sm">
-                        <Copy className="w-4 h-4 mr-2" /> Copy Email
-                      </Button>
-                    </CardFooter>
-                  </Card>
-                </TabsContent>
-
-                <TabsContent value="google" className="mt-4">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Search className="w-5 h-5 text-slate-600" /> Google Search Ad
-                      </CardTitle>
-                      <CardDescription>Preview of your search engine listing.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-6">
-                      <div className="bg-white p-4 rounded-md border shadow-sm max-w-xl">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-bold text-black text-sm">Sponsored</span>
-                          <span className="text-xs text-slate-500">·</span>
-                          <span className="text-xs text-slate-500">example.com</span>
-                        </div>
-                        <div className="text-xl text-[#1a0dab] hover:underline cursor-pointer font-medium mb-1">
-                          {result.googleAdHeadline}
-                        </div>
-                        <div className="text-sm text-[#4d5156]">
-                          {result.googleAdDescription}
-                        </div>
-                        {/* Sitelinks extension mockup */}
-                        <div className="mt-4 flex gap-4 text-sm text-[#1a0dab]">
-                          <span className="hover:underline cursor-pointer">Features</span>
-                          <span className="hover:underline cursor-pointer">Pricing</span>
-                          <span className="hover:underline cursor-pointer">Contact Us</span>
-                        </div>
-                      </div>
-                    </CardContent>
-                    <CardFooter className="justify-end">
-                      <Button variant="ghost" size="sm">
-                        <Copy className="w-4 h-4 mr-2" /> Copy Ad Copy
-                      </Button>
-                    </CardFooter>
-                  </Card>
-                </TabsContent>
-
-                <TabsContent value="meta" className="mt-4">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Layout className="w-5 h-5 text-blue-600" /> Meta Feed Ad
-                      </CardTitle>
-                      <CardDescription>Preview of your Facebook/Instagram feed ad.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-6 flex justify-center">
-                      <div className="bg-white border rounded-lg max-w-sm w-full overflow-hidden shadow-sm">
-                        {/* Header */}
-                        <div className="p-3 flex items-center gap-2">
-                          <div className="w-10 h-10 bg-slate-200 rounded-full flex-shrink-0"></div>
-                          <div className="flex-1">
-                            <div className="font-semibold text-sm">{formData.productName}</div>
-                            <div className="text-xs text-slate-500">Sponsored · 🌍</div>
-                          </div>
-                        </div>
-                        
-                        {/* Primary Text */}
-                        <div className="px-3 pb-3 text-sm text-slate-900 whitespace-pre-wrap">
-                          {result.metaAdPrimaryText}
-                        </div>
-
-                        {/* Image Placeholder */}
-                        <div className="aspect-square bg-slate-100 flex items-center justify-center text-slate-400">
-                          [Ad Creative Image]
-                        </div>
-
-                        {/* CTA Section */}
-                        <div className="p-3 bg-slate-50 border-t flex justify-between items-center">
-                          <div>
-                            <div className="text-xs text-slate-500 uppercase">example.com</div>
-                            <div className="font-bold text-sm text-slate-900">{result.metaAdHeadline}</div>
-                            <div className="text-xs text-slate-600">{result.metaAdDescription}</div>
-                          </div>
-                          <Button size="sm" variant="outline" className="h-8">Learn More</Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                    <CardFooter className="justify-end">
-                      <Button variant="ghost" size="sm">
-                        <Copy className="w-4 h-4 mr-2" /> Copy Ad Copy
-                      </Button>
-                    </CardFooter>
-                  </Card>
-                </TabsContent>
-
-                <TabsContent value="landing" className="mt-4">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Globe className="w-5 h-5 text-green-600" /> Landing Page Hero
-                      </CardTitle>
-                      <CardDescription>High-converting headline and subheadline.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-6 p-8 bg-slate-50 border rounded-md mx-6 mb-6 text-center">
-                      <div className="space-y-2">
-                        <Label className="text-xs text-slate-500 uppercase">H1 Headline</Label>
-                        <h1 className="text-3xl md:text-4xl font-bold text-slate-900">{result.landingPageHeadline}</h1>
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-xs text-slate-500 uppercase">H2 Subheadline</Label>
-                        <p className="text-xl text-slate-600">{result.landingPageSubheadline}</p>
-                      </div>
-                      <div className="pt-4">
-                        <Button size="lg">Get Started Free</Button>
-                      </div>
-                    </CardContent>
-                    <CardFooter className="justify-end">
-                      <Button variant="ghost" size="sm">
-                        <Copy className="w-4 h-4 mr-2" /> Copy Copy
-                      </Button>
-                    </CardFooter>
-                  </Card>
-                </TabsContent>
-
-                <TabsContent value="mobile" className="mt-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Smartphone className="w-5 h-5 text-indigo-500" /> Push Notification
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="p-6 flex justify-center bg-slate-100 rounded-md mx-6 mb-6">
-                        <div className="bg-white w-64 rounded-2xl shadow-lg overflow-hidden border">
-                          <div className="bg-slate-100 p-3 border-b flex items-center gap-2">
-                            <div className="w-4 h-4 bg-primary rounded-sm"></div>
-                            <span className="text-xs font-semibold text-slate-700">{formData.productName}</span>
-                            <span className="text-xs text-slate-400 ml-auto">now</span>
-                          </div>
-                          <div className="p-4">
-                            <div className="font-semibold text-sm mb-1">{result.pushNotificationTitle}</div>
-                            <div className="text-sm text-slate-600">{result.pushNotificationBody}</div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <MessageSquare className="w-5 h-5 text-green-500" /> SMS Message
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="p-6 flex justify-center bg-slate-100 rounded-md mx-6 mb-6">
-                        <div className="bg-white w-64 rounded-2xl shadow-md p-4 border relative">
-                          <div className="bg-slate-100 p-3 rounded-xl rounded-tl-none text-sm text-slate-800 inline-block">
-                            {result.smsMessage}
-                          </div>
-                          <div className="text-[10px] text-slate-400 mt-1 ml-1">Delivered</div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="content" className="mt-4">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <FileText className="w-5 h-5 text-slate-700" /> Blog Post Outline
-                      </CardTitle>
-                      <CardDescription>SEO-optimized structure for your announcement.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                      <div className="space-y-1">
-                        <Label className="text-xs text-slate-500 uppercase">Title</Label>
-                        <div className="font-bold text-xl text-slate-900">{result.blogPostTitle}</div>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs text-slate-500 uppercase">Outline</Label>
-                        <div className="bg-slate-50 p-4 rounded-md border">
-                          <pre className="whitespace-pre-wrap font-sans text-slate-700">{result.blogPostOutline}</pre>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                <TabsContent value="video" className="mt-4">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Video className="w-5 h-5 text-red-600" /> YouTube Video
-                      </CardTitle>
-                      <CardDescription>Metadata for your launch video.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                      <div className="aspect-video bg-slate-900 rounded-md flex items-center justify-center text-white">
-                        <div className="text-center">
-                          <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center mx-auto mb-2 backdrop-blur-sm">
-                            <div className="w-0 h-0 border-t-[10px] border-t-transparent border-l-[20px] border-l-white border-b-[10px] border-b-transparent ml-1"></div>
-                          </div>
-                          <span className="text-sm font-medium">Video Placeholder</span>
-                        </div>
-                      </div>
-                      <div className="space-y-4">
-                        <div>
-                          <Label className="text-xs text-slate-500 uppercase">Video Title</Label>
-                          <div className="font-medium text-lg">{result.youtubeVideoTitle}</div>
-                        </div>
-                        <div>
-                          <Label className="text-xs text-slate-500 uppercase">Description</Label>
-                          <div className="text-sm text-slate-600 whitespace-pre-wrap">{result.youtubeVideoDescription}</div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              </Tabs>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          </main>
         </div>
       </div>
     );
@@ -1138,6 +1357,9 @@ export default function OnboardingPage() {
         } as React.CSSProperties}
       >
         <div className="max-w-6xl mx-auto space-y-8">
+          <div className="w-full max-w-4xl mx-auto pt-8 px-4 mb-8">
+            <StepProgressBar steps={onboardingSteps} currentStep={getCurrentStep()} />
+          </div>
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
               <h1 className="text-3xl font-bold text-slate-900">Choose Your Workflow</h1>
@@ -1167,6 +1389,137 @@ export default function OnboardingPage() {
                 <CardFooter>
                   <Button className="w-full group-hover:bg-primary group-hover:text-white" variant="secondary">
                     Select Workflow <ArrowRight className="w-4 h-4 ml-2" />
+                  </Button>
+                </CardFooter>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 6. Publish Screen
+  if (step === 'publish') {
+    return (
+      <div className="min-h-screen bg-slate-50 p-6">
+        <div className="w-full max-w-4xl mx-auto pt-8 px-4 mb-8">
+          <StepProgressBar steps={onboardingSteps} currentStep={getCurrentStep()} />
+        </div>
+        <div className="max-w-2xl mx-auto">
+          <Card className="shadow-xl border-slate-200">
+            <CardHeader>
+              <CardTitle className="text-2xl">Publish {selectedForPublish.length} Assets</CardTitle>
+              <CardDescription>
+                You are about to publish the selected assets. This action will save them to your dashboard.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="font-semibold">Selected assets:</p>
+              <ul className="list-disc list-inside bg-slate-100 p-4 rounded-md">
+                {selectedForPublish.map(id => {
+                  const template = allTemplates.find(t => t.id === id);
+                  return <li key={id}>{template?.title || id}</li>;
+                })}
+              </ul>
+            </CardContent>
+            <CardFooter className="flex justify-between">
+              <Button variant="ghost" onClick={() => setStep('results')}>Back to Results</Button>
+              <Button onClick={() => {
+                // Update the latest campaign with the published templates
+                const latestCampaign = savedCampaigns[0];
+                if (latestCampaign) {
+                  const updatedCampaign = { ...latestCampaign, publishedTemplates: selectedForPublish };
+                  const updatedCampaigns = [updatedCampaign, ...savedCampaigns.slice(1)];
+                  setSavedCampaigns(updatedCampaigns);
+                  localStorage.setItem('savedCampaigns', JSON.stringify(updatedCampaigns));
+                }
+                setStep('dashboard');
+              }}>
+                Confirm & Publish <Zap className="ml-2 w-4 h-4" />
+              </Button>
+            </CardFooter>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // 7. Dashboard Screen
+  if (step === 'dashboard') {
+    return (
+      <div className="min-h-screen bg-slate-50 p-6">
+        {viewingCampaign && (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setViewingCampaign(null)}>
+            <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+              <CardHeader>
+                <CardTitle>Viewing: {viewingCampaign.name}</CardTitle>
+                <CardDescription>Showing {viewingCampaign.publishedTemplates?.length || 0} published assets.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {(viewingCampaign.publishedTemplates || []).map(templateId => {
+                  const template = allTemplates.find(t => t.id === templateId);
+                  if (!template) return null;
+                  return (
+                    <div key={templateId} className="border p-4 rounded-lg bg-slate-50">
+                      <h3 className="font-bold text-lg mb-2 flex items-center gap-2">{template.icon} {template.title}</h3>
+                      {templateId === 'social-suite' && <div className="whitespace-pre-wrap font-sans text-slate-700">{viewingCampaign.result.socialPost}</div>}
+                      {templateId === 'email-campaign' && <div className="space-y-2"><div><strong>Subject:</strong> {viewingCampaign.result.emailSubject}</div><div className="whitespace-pre-wrap font-sans text-slate-700">{viewingCampaign.result.emailBody}</div></div>}
+                      {/* Add other template types here */}
+                      {!['social-suite', 'email-campaign'].includes(templateId) && <div className="whitespace-pre-wrap font-sans text-slate-700">{viewingCampaign.result.socialPost}</div>}
+                    </div>
+                  );
+                })}
+                {(!viewingCampaign.publishedTemplates || viewingCampaign.publishedTemplates.length === 0) && (
+                  <p className="text-slate-500 text-center">No assets have been published for this campaign yet.</p>
+                )}
+              </CardContent>
+              <CardFooter className="flex justify-end">
+                <Button variant="outline" onClick={() => setViewingCampaign(null)}>Close</Button>
+              </CardFooter>
+            </Card>
+          </div>
+        )}
+
+        <div className="w-full max-w-4xl mx-auto pt-8 px-4 mb-8">
+          <StepProgressBar steps={onboardingSteps} currentStep={getCurrentStep()} />
+        </div>
+        <div className="max-w-4xl mx-auto">
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-3xl font-bold text-slate-900">Campaign Dashboard</h1>
+            <Button onClick={handleRestart}>
+              <Plus className="w-4 h-4 mr-2" /> Create New Campaign
+            </Button>
+          </div>
+          <div className="space-y-4">
+            {savedCampaigns.length === 0 && (
+              <div className="text-center py-12 border-2 border-dashed rounded-lg">
+                <h3 className="text-xl font-semibold text-slate-700">No Saved Campaigns Yet</h3>
+                <p className="text-slate-500 mt-2">Start by creating a new campaign.</p>
+              </div>
+            )}
+            {savedCampaigns.map(s => (
+              <Card key={s.id} className="bg-white shadow-sm">
+                <CardHeader>
+                  <CardTitle className="flex justify-between items-center">
+                    {s.name}
+                    <Badge variant={(s.publishedTemplates?.length || 0) > 1 ? "default" : "secondary"}>
+                      {s.publishedTemplates?.length || 0} Published Asset(s)
+                    </Badge>
+                  </CardTitle>
+                  <CardDescription>{new Date(s.date).toLocaleString()}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-slate-600 line-clamp-2">
+                    Based on product: <strong>{s.formData.productName}</strong>. Generated assets for {s.templates.join(', ')}.
+                  </p>
+                </CardContent>
+                <CardFooter className="flex justify-end gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setViewingCampaign(s)}>
+                    <Eye className="w-4 h-4 mr-2" /> View
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => handleExportAll(s)}>
+                    <Download className="w-4 h-4 mr-2" /> Export
                   </Button>
                 </CardFooter>
               </Card>
