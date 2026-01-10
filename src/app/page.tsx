@@ -97,29 +97,30 @@ type GeneratingVariant = 'system-status' | 'magic-show' | 'pet-techniques' | 'mi
 const generateCampaign = async (data: CampaignData): Promise<GeneratedResult> => {
   return new Promise((resolve) => {
     setTimeout(() => {
+      const productDescription = data.productDescription || '';
       resolve({
         tagline: `Experience the future of ${data.productName}.`,
         audiencePersona: "Tech-savvy early adopters who value efficiency and innovation.",
-        socialPost: `🚀 Introducing ${data.productName}! \n\n${data.productDescription.slice(0, 50)}... \n\nIt's time to upgrade your workflow. #Tech #Innovation #${data.productName.replace(/\s/g, '')}`,
+        socialPost: `🚀 Introducing ${data.productName}! \n\n${productDescription.slice(0, 50)}... \n\nIt's time to upgrade your workflow. #Tech #Innovation #${data.productName.replace(/\s/g, '')}`,
         emailSubject: `Unlock your potential with ${data.productName}`,
-        emailBody: `Hi [Name],\n\nWe are thrilled to announce the launch of ${data.productName}.\n\n${data.productDescription}\n\nDon't miss out on our exclusive launch offer.\n\nBest,\nThe Team`,
+        emailBody: `Hi [Name],\n\nWe are thrilled to announce the launch of ${data.productName}.\n\n${productDescription}\n\nDon't miss out on our exclusive launch offer.\n\nBest,\nThe Team`,
         googleAdHeadline: `${data.productName} - Official Site`,
-        googleAdDescription: `Discover ${data.productName}. ${data.productDescription.slice(0, 60)}... Shop now for exclusive deals.`,
-        metaAdPrimaryText: `Stop scrolling and start experiencing ${data.productName}. 🛑✨ \n\n${data.productDescription}`,
+        googleAdDescription: `Discover ${data.productName}. ${productDescription.slice(0, 60)}... Shop now for exclusive deals.`,
+        metaAdPrimaryText: `Stop scrolling and start experiencing ${data.productName}. 🛑✨ \n\n${productDescription}`,
         metaAdHeadline: `The Future of ${data.productName} is Here`,
         metaAdDescription: "Shop Now",
         // New fields
         landingPageHeadline: `Master Your Workflow with ${data.productName}`,
-        landingPageSubheadline: `The all-in-one solution designed to help you ${data.productDescription.slice(0, 30).toLowerCase()}... and achieve more.`,
-        instagramCaption: `✨ Ready to level up? Meet ${data.productName}. \n\n${data.productDescription.slice(0, 40)}... \n\nLink in bio! 🔗 #NewLaunch #Productivity #${data.productName.replace(/\s/g, '')}`,
+        landingPageSubheadline: `The all-in-one solution designed to help you ${productDescription.slice(0, 30).toLowerCase()}... and achieve more.`,
+        instagramCaption: `✨ Ready to level up? Meet ${data.productName}. \n\n${productDescription.slice(0, 40)}... \n\nLink in bio! 🔗 #NewLaunch #Productivity #${data.productName.replace(/\s/g, '')}`,
         pushNotificationTitle: `It's finally here! 🎉`,
         pushNotificationBody: `See what's new in ${data.productName}. Tap to explore.`,
         smsMessage: `Hey! ${data.productName} is live. Get early access now: bit.ly/launch - Text STOP to opt out.`,
         blogPostTitle: `Why We Built ${data.productName} (And Why You Need It)`,
         blogPostOutline: `1. The Problem: Why current solutions fail.\n2. The Solution: How ${data.productName} changes the game.\n3. Getting Started: Your first steps to success.`,
         youtubeVideoTitle: `${data.productName} Official Launch Trailer | The Future of Work`,
-        youtubeVideoDescription: `Welcome to ${data.productName}. In this video, we show you how to ${data.productDescription.slice(0, 50)}... \n\nLearn more at our website.`,
-        productHuntTagline: `The best way to ${data.productDescription.slice(0, 20)}...`
+        youtubeVideoDescription: `Welcome to ${data.productName}. In this video, we show you how to ${productDescription.slice(0, 50)}... \n\nLearn more at our website.`,
+        productHuntTagline: `The best way to ${productDescription.slice(0, 20)}...`
       });
     }, 3000); // Simulate 3s generation time
   });
@@ -130,20 +131,15 @@ type Step = 'login' | 'team-size' | 'template-selection' | 'teammate' | 'chat-hu
 export default function OnboardingPage() {
   // --- State ---
   const [step, setStep] = useState<Step>('login');
-  const [formData, setFormData] = useState<CampaignData>({
-    productName: '',
-    productDescription: '',
-    targetAudience: '',
-    keywords: '',
-    tone: ''
-  });
+  const [formData, setFormData] = useState<{[key: string]: string}>({});
   const [progress, setProgress] = useState(0);
   const [loadingMessage, setLoadingMessage] = useState("Initializing AI...");
   const [result, setResult] = useState<GeneratedResult | null>(null);
   const [selectedTemplates, setSelectedTemplates] = useState<string[]>([]);
-  const [showScrollTop, setShowScrollTop] = useState(false);
+  const [brandVoice, setBrandVoice] = useState('Professional');
   const [savedCampaigns, setSavedCampaigns] = useState<SavedCampaign[]>([]);
-  const [assetToPublish, setAssetToPublish] = useState<string | null>(null);
+  const [autosaveStatus, setAutosaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [showScrollTop, setShowScrollTop] = useState(false);
   const [generationComplete, setGenerationComplete] = useState(false);
   const [selectedForPublish, setSelectedForPublish] = useState<string[]>([]);
   const [viewingCampaign, setViewingCampaign] = useState<SavedCampaign | null>(null);
@@ -163,6 +159,34 @@ export default function OnboardingPage() {
     }
   };
 
+  // Helper to persist current result into the latest saved campaign (if exists)
+  const persistResultToLatestCampaign = (updatedResult: GeneratedResult) => {
+    const latestCampaign = savedCampaigns[0];
+    if (latestCampaign) {
+      const updatedCampaign: SavedCampaign = { ...latestCampaign, result: updatedResult };
+      const updatedCampaigns = [updatedCampaign, ...savedCampaigns.slice(1)];
+      setSavedCampaigns(updatedCampaigns);
+      try {
+        localStorage.setItem('savedCampaigns', JSON.stringify(updatedCampaigns));
+      } catch (e) {
+        // ignore localStorage errors
+      }
+    }
+  };
+
+  // Autosave: debounce changes to `result` and persist them
+  useEffect(() => {
+    if (!result) return;
+    setAutosaveStatus('saving');
+    const handler = setTimeout(() => {
+      persistResultToLatestCampaign(result);
+      setAutosaveStatus('saved');
+      const clearStatus = setTimeout(() => setAutosaveStatus('idle'), 1500);
+      return () => clearTimeout(clearStatus);
+    }, 800); // 800ms debounce
+
+    return () => clearTimeout(handler);
+  }, [result]);
   const allTemplates: Template[] = [
     {
       id: 'social-suite',
@@ -1141,6 +1165,21 @@ export default function OnboardingPage() {
                   )}
                 </div>
               ))}
+              <div className="space-y-2">
+                <Label>Select Brand Voice</Label>
+                <div className="flex space-x-2">
+                  {['Professional', 'Witty', 'Causal'].map((voice) => (
+                    <Button
+                      key={voice}
+                      variant={brandVoice === voice ? 'default' : 'outline'}
+                      onClick={() => setBrandVoice(voice)}
+                      className="rounded-lg"
+                    >
+                      {voice}
+                    </Button>
+                  ))}
+                </div>
+              </div>
             </CardContent>
             <CardFooter className="flex justify-between">
               <Button variant="ghost" onClick={() => setStep('template-selection')}>Back</Button>
@@ -1228,14 +1267,26 @@ export default function OnboardingPage() {
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                   <h1 className="text-3xl font-bold text-slate-900">Your Campaign Assets</h1>
-                  <p className="text-slate-500">Generated for <strong>{formData.productName}</strong>. Select assets to publish.</p>
+                  <div className="flex items-center gap-3">
+                    <p className="text-slate-500">Generated for <strong>{formData.productName}</strong>. Select assets to publish.</p>
+                    {autosaveStatus !== 'idle' && (
+                      <div className="flex items-center gap-2 text-sm text-slate-500">
+                        {autosaveStatus === 'saving' ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4 text-green-500" />}
+                        <span>{autosaveStatus === 'saving' ? 'Saving...' : 'Saved'}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div className="flex gap-3">
                   <Button variant="outline" onClick={handleRestart}>
                     <RotateCcw className="w-4 h-4 mr-2" /> Start Over
                   </Button>
                   <Button 
-                    onClick={() => setStep('publish')}
+                    onClick={() => {
+                      // persist any edits to the latest saved campaign before publishing
+                      if (result) persistResultToLatestCampaign(result);
+                      setStep('publish');
+                    }}
                     disabled={selectedForPublish.length === 0}
                   >
                     <Zap className="w-4 h-4 mr-2" /> Publish Selected ({selectedForPublish.length})
@@ -1267,27 +1318,46 @@ export default function OnboardingPage() {
                       <CardContent className="flex-1 bg-slate-50/50 p-6 border-y">
                         {/* Dynamic Content Rendering based on Template ID */}
                         {templateId === 'social-suite' && (
-                          <div className="whitespace-pre-wrap font-sans text-slate-700">{result.socialPost}</div>
+                          <div>
+                            <Label className="text-xs">Social Post</Label>
+                            <Textarea value={result.socialPost} onChange={(e) => setResult({ ...result, socialPost: e.target.value })} className="min-h-[120px]" />
+                          </div>
                         )}
                         {templateId === 'email-campaign' && (
                           <div className="space-y-4">
-                            <div><span className="font-bold text-xs uppercase text-slate-500">Subject:</span> {result.emailSubject}</div>
-                            <div className="whitespace-pre-wrap font-sans text-slate-700">{result.emailBody}</div>
+                            <div>
+                              <Label className="text-xs">Email Subject</Label>
+                              <Input value={result.emailSubject} onChange={(e) => setResult({ ...result, emailSubject: e.target.value })} />
+                            </div>
+                            <div>
+                              <Label className="text-xs">Email Body</Label>
+                              <Textarea value={result.emailBody} onChange={(e) => setResult({ ...result, emailBody: e.target.value })} className="min-h-[120px]" />
+                            </div>
                           </div>
                         )}
                         {templateId === 'ad-copy' && (
                           <div className="space-y-4">
-                            <div className="bg-white p-4 rounded border shadow-sm">
-                              <div className="text-blue-800 text-xl hover:underline cursor-pointer">{result.googleAdHeadline}</div>
-                              <div className="text-green-700 text-sm">www.example.com/ad</div>
-                              <div className="text-slate-600 text-sm">{result.googleAdDescription}</div>
+                            <div>
+                              <Label className="text-xs">Google Ad Headline</Label>
+                              <Input value={result.googleAdHeadline} onChange={(e) => setResult({ ...result, googleAdHeadline: e.target.value })} />
                             </div>
-                            <div className="space-y-2">
-                              <div className="text-sm text-slate-900">{result.metaAdPrimaryText}</div>
-                              <div className="bg-slate-100 h-48 flex items-center justify-center text-slate-400 rounded">[Ad Image]</div>
-                              <div className="bg-slate-50 p-2 border rounded">
-                                <div className="font-bold text-sm">{result.metaAdHeadline}</div>
-                                <div className="text-xs text-slate-500">{result.metaAdDescription}</div>
+                            <div>
+                              <Label className="text-xs">Google Ad Description</Label>
+                              <Textarea value={result.googleAdDescription} onChange={(e) => setResult({ ...result, googleAdDescription: e.target.value })} className="min-h-[80px]" />
+                            </div>
+                            <div>
+                              <Label className="text-xs">Meta Primary Text</Label>
+                              <Textarea value={result.metaAdPrimaryText} onChange={(e) => setResult({ ...result, metaAdPrimaryText: e.target.value })} className="min-h-[80px]" />
+                            </div>
+                            <div className="bg-slate-100 h-48 flex items-center justify-center text-slate-400 rounded">[Ad Image]</div>
+                            <div className="bg-slate-50 p-2 border rounded">
+                              <div>
+                                <Label className="text-xs">Meta Ad Headline</Label>
+                                <Input value={result.metaAdHeadline} onChange={(e) => setResult({ ...result, metaAdHeadline: e.target.value })} />
+                              </div>
+                              <div>
+                                <Label className="text-xs">Meta Ad Description</Label>
+                                <Input value={result.metaAdDescription} onChange={(e) => setResult({ ...result, metaAdDescription: e.target.value })} />
                               </div>
                             </div>
                           </div>
@@ -1295,13 +1365,14 @@ export default function OnboardingPage() {
                         {templateId === 'product-launch' && (
                           <div className="space-y-2">
                             <div className="font-bold">Product Hunt Tagline</div>
-                            <div className="whitespace-pre-wrap font-sans text-slate-700">{result.productHuntTagline}</div>
+                            <Textarea value={result.productHuntTagline} onChange={(e) => setResult({ ...result, productHuntTagline: e.target.value })} className="min-h-[80px]" />
                           </div>
                         )}
                         {/* Fallback for other templates */}
                         {!['social-suite', 'email-campaign', 'ad-copy', 'product-launch'].includes(templateId) && (
-                          <div className="whitespace-pre-wrap font-sans text-slate-700">
-                            {result.socialPost} 
+                          <div>
+                            <Label className="text-xs">Content</Label>
+                            <Textarea value={result.socialPost} onChange={(e) => setResult({ ...result, socialPost: e.target.value })} className="min-h-[120px]" />
                           </div>
                         )}
                       </CardContent>
@@ -1426,13 +1497,17 @@ export default function OnboardingPage() {
             <CardFooter className="flex justify-between">
               <Button variant="ghost" onClick={() => setStep('results')}>Back to Results</Button>
               <Button onClick={() => {
-                // Update the latest campaign with the published templates
+                // Update the latest campaign with the published templates and current (possibly edited) result
                 const latestCampaign = savedCampaigns[0];
-                if (latestCampaign) {
-                  const updatedCampaign = { ...latestCampaign, publishedTemplates: selectedForPublish };
+                if (latestCampaign && result) {
+                  const updatedCampaign = { ...latestCampaign, publishedTemplates: selectedForPublish, result };
                   const updatedCampaigns = [updatedCampaign, ...savedCampaigns.slice(1)];
                   setSavedCampaigns(updatedCampaigns);
-                  localStorage.setItem('savedCampaigns', JSON.stringify(updatedCampaigns));
+                  try {
+                    localStorage.setItem('savedCampaigns', JSON.stringify(updatedCampaigns));
+                  } catch (e) {
+                    // ignore
+                  }
                 }
                 setStep('dashboard');
               }}>
